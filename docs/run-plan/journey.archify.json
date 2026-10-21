@@ -1,0 +1,252 @@
+{
+  "schema_version": 3,
+  "diagram_type": "lifecycle",
+  "meta": {
+    "title": "SauceDemo checkout journey: from page to page",
+    "output": "docs/run-plan/map.html",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/iampaperhero/zvoove-saucedemo-demo.git",
+      "provider": "github",
+      "link_mode": "web",
+      "revision": "42252387bf464cc6c019f583baf5de4d8c932aa8"
+    },
+    "views": [
+      {
+        "id": "pages",
+        "label": "The pages in order",
+        "focus": [
+          "login",
+          "inventory",
+          "cart",
+          "stepOne",
+          "stepTwo",
+          "complete"
+        ],
+        "note": "The @e2e journey, the same for both users: each arrow is a @step that leads to the next page."
+      },
+      {
+        "id": "detour",
+        "label": "The Last Name detour (problem_user)",
+        "focus": [
+          "stepOne",
+          "refused",
+          "patched",
+          "stepTwo"
+        ],
+        "note": "Last Name loses what was typed: the form refuses Continue, the bundle is patched, the customer retyped."
+      }
+    ]
+  },
+  "mainPath": [
+    "login",
+    "inventory",
+    "cart",
+    "stepOne",
+    "stepTwo",
+    "complete"
+  ],
+  "states": [
+    {
+      "id": "login",
+      "type": "start",
+      "label": "Login",
+      "sublabel": "/",
+      "step": "01",
+      "sources": [
+        {
+          "path": "pages/login.page.ts",
+          "line": 18,
+          "end_line": 32,
+          "label": "open, logIn"
+        }
+      ]
+    },
+    {
+      "id": "inventory",
+      "type": "active",
+      "label": "Inventory",
+      "sublabel": "/inventory.html",
+      "step": "02",
+      "sources": [
+        {
+          "path": "pages/inventory.page.ts",
+          "line": 21,
+          "end_line": 38,
+          "label": "isOpen, addToCart"
+        },
+        {
+          "path": "pages/components/header.component.ts",
+          "line": 20,
+          "end_line": 24,
+          "label": "openCart"
+        }
+      ]
+    },
+    {
+      "id": "cart",
+      "type": "active",
+      "label": "Cart",
+      "sublabel": "/cart.html",
+      "step": "03",
+      "sources": [
+        {
+          "path": "pages/cart.page.ts",
+          "line": 18,
+          "end_line": 30,
+          "label": "items, checkout"
+        }
+      ]
+    },
+    {
+      "id": "stepOne",
+      "type": "decision",
+      "label": "Information",
+      "sublabel": "checkout-step-one",
+      "step": "04",
+      "sources": [
+        {
+          "path": "pages/checkout-step-one.page.ts",
+          "line": 30,
+          "end_line": 57,
+          "label": "fill, fields, continue"
+        }
+      ]
+    },
+    {
+      "id": "stepTwo",
+      "type": "active",
+      "label": "Overview",
+      "sublabel": "checkout-step-two",
+      "step": "05",
+      "sources": [
+        {
+          "path": "pages/checkout-step-two.page.ts",
+          "line": 25,
+          "end_line": 45,
+          "label": "items, totals, finish"
+        }
+      ]
+    },
+    {
+      "id": "complete",
+      "type": "success",
+      "label": "Complete",
+      "sublabel": "thank you, PDF",
+      "step": "06",
+      "sources": [
+        {
+          "path": "pages/checkout-complete.page.ts",
+          "line": 20,
+          "end_line": 29,
+          "label": "isOpen, offersOrderPdf"
+        }
+      ]
+    },
+    {
+      "id": "refused",
+      "type": "failure",
+      "label": "Information refused",
+      "sublabel": "Last Name is required",
+      "tag": "problem_user"
+    },
+    {
+      "id": "patched",
+      "type": "external",
+      "label": "Information, patched",
+      "sublabel": "bundle patched, retyped",
+      "tag": "workaround",
+      "sources": [
+        {
+          "path": "fixtures/last-name-workaround.fixture.ts",
+          "line": 22,
+          "end_line": 30,
+          "label": "bundle capture"
+        },
+        {
+          "path": "fixtures/last-name-workaround.fixture.ts",
+          "line": 32,
+          "end_line": 103,
+          "label": "applyIfNeeded, step"
+        }
+      ]
+    }
+  ],
+  "transitions": [
+    {
+      "id": "log-in",
+      "from": "login",
+      "to": "inventory",
+      "label": "Log in",
+      "variant": "emphasis"
+    },
+    {
+      "id": "to-cart",
+      "from": "inventory",
+      "to": "cart",
+      "label": "Add to cart",
+      "variant": "emphasis"
+    },
+    {
+      "id": "checkout",
+      "from": "cart",
+      "to": "stepOne",
+      "label": "Checkout",
+      "variant": "emphasis"
+    },
+    {
+      "id": "submit",
+      "from": "stepOne",
+      "to": "stepTwo",
+      "label": "Submit",
+      "variant": "emphasis"
+    },
+    {
+      "id": "finish",
+      "from": "stepTwo",
+      "to": "complete",
+      "label": "Finish",
+      "variant": "emphasis"
+    },
+    {
+      "id": "refuse",
+      "from": "stepOne",
+      "to": "refused",
+      "label": "Submit refused",
+      "variant": "security"
+    },
+    {
+      "id": "patch",
+      "from": "refused",
+      "to": "patched",
+      "label": "patch, reload, retype",
+      "variant": "dashed"
+    },
+    {
+      "id": "resubmit",
+      "from": "patched",
+      "to": "stepTwo",
+      "label": "Submit"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "How to read it",
+      "items": [
+        "Each box is a page of the app, each arrow a @step of the journey: Open the login page, Log in as {user}, Add {products} to the cart, Open the cart, Start checkout, Enter the customer information and Submit it, Complete the order",
+        "A page that does not open stops the test; what a page shows (badge, items, totals) is checked softly; the receipt PDF is left to the LLM judge"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "The detour for problem_user",
+      "items": [
+        "Only when Last Name lost what was typed",
+        "The form must refuse Submit before anything is patched",
+        "Every check after it runs on a patched app (ADR 0013)"
+      ]
+    }
+  ]
+}
