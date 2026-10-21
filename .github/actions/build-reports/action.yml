@@ -1,0 +1,111 @@
+name: Build the reports
+description: One Allure report of every job, behind an index page in site/, kept as the reports artifact.
+
+inputs:
+  pages-project:
+    description: The Cloudflare Pages project the Allure history is fetched from. Empty starts the history afresh.
+    required: false
+    default: ''
+  judge-result:
+    description: The result of the AI judge's job (success, failure, skipped, ...), for the index page.
+    required: false
+    default: skipped
+
+runs:
+  using: composite
+  steps:
+    - name: Download Allure results
+      uses: actions/download-artifact@v8
+      with:
+        pattern: allure-results-*
+        path: allure-results
+        merge-multiple: true
+
+    # The Allure history of main's latest report, for the trends; kept only if it is JSON, as Pages answers a missing file with its index.
+    - name: Fetch the Allure history
+      if: ${{ inputs.pages-project != '' }}
+      shell: bash
+      env:
+        PAGES_PROJECT: ${{ inputs.pages-project }}
+      run: |
+        mkdir -p allure-history
+        curl -fsSL "https://$PAGES_PROJECT.pages.dev/allure/history.jsonl" -o allure-history/history.jsonl || true
+        if [ "$(head -c 1 allure-history/history.jsonl 2>/dev/null)" != "{" ]; then
+          rm -f allure-history/history.jsonl
+        fi
+
+    - name: Build the Allure report
+      shell: bash
+      run: |
+        npx allure generate allure-results
+        mkdir -p site
+        mv allure-report site/allure
+        cp allure-history/history.jsonl site/allure/
+
+    # This deployment replaces the run plan's at the same address, so it carries the map too.
+    - name: Add the map of the journey
+      shell: bash
+      run: |
+        if [ -f docs/run-plan/map.html ]; then
+          mkdir -p site/run-plan
+          cp docs/run-plan/index.html docs/run-plan/map.html site/run-plan/
+        fi
+
+    # Absent when the judge did not run (judge off, cancelled).
+    - name: Download the AI judge's verdict
+      if: ${{ inputs.judge-result != 'skipped' }}
+      continue-on-error: true
+      uses: actions/download-artifact@v8
+      with:
+        name: ai-judge-verdict
+        path: judge-results
+
+    # The verdicts as a page, the raw verdict.json files beside it (ADR 0020).
+    - name: Build the AI judge page
+      id: judge
+      shell: bash
+      env:
+        JUDGE_RESULT: ${{ inputs.judge-result }}
+      run: |
+        status=$(node judge/page.mjs judge-results site/judge)
+        if [ "$status" = "not run" ] && [ "$JUDGE_RESULT" != skipped ]; then
+          status="no verdict: the judge's job ended with $JUDGE_RESULT before writing one"
+        fi
+        echo "status=$status" >> "$GITHUB_OUTPUT"
+
+    # Without it Pages answers a missing file with the index page.
+    - name: Build the index page
+      shell: bash
+      env:
+        JUDGE_STATUS: ${{ steps.judge.outputs.status }}
+      run: |
+        if [ -f site/judge/index.html ]; then
+          judge_line="<li><a href=\"judge/\">AI judge</a> of the order receipts: $JUDGE_STATUS</li>"
+        else
+          judge_line="<li>AI judge of the order receipts: $JUDGE_STATUS</li>"
+        fi
+        cat > site/index.html <<EOF
+        <!doctype html>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Test reports</title>
+        <style>body { font: 16px system-ui, sans-serif; margin: 2rem 1rem; }</style>
+        <h1>Test reports</h1>
+        <p>Run <a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}">#${{ github.run_number }}</a>,
+        ${{ github.event_name }} on ${{ github.ref_name }}, commit ${GITHUB_SHA::7},
+        app: ${BASE_URL}.</p>
+        <ul>
+          <li><a href="allure/">Allure report</a></li>
+          <li><a href="allure/#charts">Trends</a> of the previous runs of main, the Graphs page of the Allure report</li>
+          <li><a href="run-plan/">Live map of the journey</a>, the pages the test walks through, step by step</li>
+          $judge_line
+        </ul>
+        EOF
+        echo '<!doctype html><meta charset="utf-8"><title>Not found</title><p>Not found.</p>' > site/404.html
+
+    - name: Upload the reports
+      uses: actions/upload-artifact@v7
+      with:
+        name: reports
+        path: site/
+        retention-days: 14

@@ -1,0 +1,15 @@
+node_modules/
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+.DS_Store
+.env
+/allure-results/
+/allure-report/
+/allure-history/
+/judge-results/
+/.archify/
+# archify receipts hold local paths; only the candidate and the HTML are kept.
+/docs/run-plan/map.*.json
+/verdict.json

@@ -1,0 +1,93 @@
+name: Write the run plan
+description: Says in the job summary what the run is about to test and how, and publishes the live map of the journey at run-<number>.<project>.pages.dev/run-plan/.
+
+# BASE_URL, RETRIES and FAKER_SEED come from the workflow's env.
+inputs:
+  browser:
+    description: The browser input of the run.
+    required: false
+    default: ''
+  users:
+    description: The users input of the run.
+    required: false
+    default: ''
+  judge:
+    description: '"true" when the AI judge runs after the tests.'
+    required: true
+  pages-project:
+    description: The Cloudflare Pages project. Empty publishes no map.
+    required: false
+    default: ''
+  api-token:
+    description: A Cloudflare API token allowed to edit Pages.
+    required: false
+    default: ''
+  account-id:
+    description: The Cloudflare account the project belongs to.
+    required: false
+    default: ''
+
+outputs:
+  url:
+    description: The address of the map of the journey; empty when it was not deployed.
+    value: ${{ steps.plan.outputs.url }}
+
+runs:
+  using: composite
+  steps:
+    # First attempt only: a re-run would hide the earlier reports at run-<number>.
+    - name: Stage the map of the journey
+      if: ${{ inputs.pages-project != '' && github.run_attempt == '1' }}
+      shell: bash
+      run: |
+        mkdir -p plan-site/run-plan
+        cp docs/run-plan/index.html docs/run-plan/map.html plan-site/run-plan/
+
+    # A failed deployment leaves the plan without the link; it never fails the run.
+    - name: Deploy the map to Cloudflare Pages
+      id: pages
+      if: ${{ inputs.pages-project != '' && github.run_attempt == '1' }}
+      continue-on-error: true
+      uses: cloudflare/wrangler-action@v4
+      with:
+        apiToken: ${{ inputs.api-token }}
+        accountId: ${{ inputs.account-id }}
+        command: pages deploy plan-site --project-name=${{ inputs.pages-project }} --branch=run-${{ github.run_number }}
+
+    - name: Write the run plan
+      id: plan
+      shell: bash
+      env:
+        BROWSER: ${{ inputs.browser }}
+        USERS: ${{ inputs.users }}
+        JUDGE: ${{ inputs.judge }}
+        DEPLOYMENT_URL: ${{ steps.pages.outputs.pages-deployment-alias-url || steps.pages.outputs.deployment-url }}
+      run: |
+        MAP_URL="${DEPLOYMENT_URL:+$DEPLOYMENT_URL/run-plan/}"
+        echo "url=$MAP_URL" >> "$GITHUB_OUTPUT"
+        case "$JUDGE" in
+          true) judge="Jev through OpenRouter, advisory: its verdict changes neither the run's result nor the probe gate" ;;
+          *) judge='off' ;;
+        esac
+        {
+          # The same heading link as the reports get from deploy-reports.
+          if [ -n "$MAP_URL" ]; then
+            echo "### [Live map of the journey: the pages, step by step]($MAP_URL)"
+            echo
+          fi
+          echo "### Run plan · run ${{ github.run_number }}"
+          echo
+          echo '| | |'
+          echo '| --- | --- |'
+          echo "| Tests | the e2e journey |"
+          echo "| App | the public URL $BASE_URL |"
+          echo "| Browsers | ${BROWSER:-chromium-desktop-1280x720} |"
+          echo "| Users | ${USERS:-both}; one job per browser and user |"
+          echo "| Retries | ${RETRIES:-the default of the config on CI} |"
+          echo "| Faker seed | $FAKER_SEED |"
+          echo "| AI judge of the receipts | $judge (ADR 0020) |"
+          if [ -z "$MAP_URL" ]; then
+            echo
+            echo 'The live map of the journey is in the reports, under run-plan/.'
+          fi
+        } >> "$GITHUB_STEP_SUMMARY"

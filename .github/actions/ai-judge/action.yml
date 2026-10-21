@@ -1,0 +1,37 @@
+name: Judge the evidence with Jev
+description: The golden set first, then the run's order receipts, with TypeSafe's Jev through OpenRouter (ADR 0020).
+
+inputs:
+  evidence-dir:
+    description: Where the evidence.json files of the run were downloaded, each with its receipt.png.
+    required: true
+  openrouter-api-key:
+    description: The OpenRouter key, from the OPENROUTER_API_KEY secret; empty, the judge exits 2.
+    required: true
+
+outputs:
+  golden:
+    description: passed, failed or error.
+    value: ${{ steps.golden.outputs.result }}
+  verdict:
+    description: known, new, missed or error.
+    value: ${{ steps.judge.outputs.result }}
+
+runs:
+  using: composite
+  steps:
+    # Before the run's verdict is trusted: every seeded defect flagged, the clean case clean.
+    - name: Judge the golden set
+      id: golden
+      shell: bash
+      env:
+        OPENROUTER_API_KEY: ${{ inputs.openrouter-api-key }}
+      run: npm run judge:golden
+
+    - name: Judge the evidence
+      id: judge
+      if: ${{ !cancelled() }}
+      shell: bash
+      env:
+        OPENROUTER_API_KEY: ${{ inputs.openrouter-api-key }}
+      run: npm run judge -- '${{ inputs.evidence-dir }}'

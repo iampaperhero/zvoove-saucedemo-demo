@@ -1,0 +1,26 @@
+name: Draw the mind map of the run
+description: Puts the branches the browser and user jobs uploaded together into one mind map in the job summary.
+
+# A job that uploaded no branch is left out.
+runs:
+  using: composite
+  steps:
+    - name: Download mind map branches
+      uses: actions/download-artifact@v8
+      with:
+        pattern: mindmap-*
+        path: mindmap
+        merge-multiple: true
+
+    - name: Draw the mind map
+      shell: bash
+      run: |
+        ls mindmap/*.mmd > /dev/null 2>&1 || exit 0
+        {
+          echo '### all browsers and users · Mind map'
+          echo '```mermaid'
+          echo 'mindmap'
+          echo '  root((Run ${{ github.run_number }}))'
+          cat mindmap/*.mmd
+          echo '```'
+        } >> "$GITHUB_STEP_SUMMARY"

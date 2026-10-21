@@ -1,0 +1,86 @@
+[
+  {
+    "file": "clean.json",
+    "image": "clean.png",
+    "set": "tuning",
+    "expect": []
+  },
+  {
+    "file": "totals-doubled.json",
+    "image": "totals-doubled.png",
+    "set": "tuning",
+    "expect": ["receiptTotals #2"]
+  },
+  {
+    "file": "no-order-number.json",
+    "image": "no-order-number.png",
+    "set": "tuning",
+    "expect": ["receiptOrderNumber #13"]
+  },
+  {
+    "file": "no-seller-contact.json",
+    "image": "no-seller-contact.png",
+    "set": "tuning",
+    "expect": ["receiptDocument #15"]
+  },
+  {
+    "file": "text-cut-off.json",
+    "image": "text-cut-off.png",
+    "set": "tuning",
+    "expect": ["receiptLayout NEW"]
+  },
+  {
+    "file": "no-logo.json",
+    "image": "no-logo.png",
+    "set": "tuning",
+    "expect": ["receiptLayout NEW"]
+  },
+  {
+    "file": "ship-to-other-customer.json",
+    "image": "clean.png",
+    "set": "tuning",
+    "expect": ["receiptShipTo NEW"]
+  },
+  {
+    "file": "date-other-day.json",
+    "image": "clean.png",
+    "set": "tuning",
+    "expect": ["receiptDate NEW"]
+  },
+  {
+    "file": "live-standard.json",
+    "image": "live-standard.png",
+    "set": "tuning",
+    "expect": ["receiptOrderNumber #13", "receiptDocument #15"]
+  },
+  {
+    "file": "confirmation-code.json",
+    "image": "confirmation-code.png",
+    "set": "held-out",
+    "expect": []
+  },
+  {
+    "file": "order-number-undefined.json",
+    "image": "order-number-undefined.png",
+    "set": "held-out",
+    "expect": ["receiptOrderNumber NEW"]
+  },
+  {
+    "file": "overlapping-text.json",
+    "image": "overlapping-text.png",
+    "set": "held-out",
+    "expect": ["receiptLayout NEW"]
+  },
+  {
+    "file": "blank-header.json",
+    "image": "blank-header.png",
+    "set": "held-out",
+    "expect": ["receiptLayout NEW"]
+  },
+  {
+    "file": "live-problem.json",
+    "image": "live-problem.png",
+    "set": "held-out",
+    "expect": ["receiptTotals #2", "receiptOrderNumber #13", "receiptDocument #15"]
+  }
+]

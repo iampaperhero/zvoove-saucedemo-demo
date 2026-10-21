@@ -1,0 +1,38 @@
+name: Collect the results of a browser and user
+description: Uploads the raw results of a browser and user for the post jobs.
+
+inputs:
+  project:
+    description: The browser and user the job ran, as browser-user.
+    required: true
+
+# Each step says `!cancelled()` itself: the results are needed after failed tests most.
+runs:
+  using: composite
+  steps:
+    - name: Upload Allure results
+      if: ${{ !cancelled() }}
+      uses: actions/upload-artifact@v7
+      with:
+        name: allure-results-${{ inputs.project }}
+        path: allure-results/
+        retention-days: 1
+
+    - name: Upload mind map branch
+      if: ${{ !cancelled() }}
+      uses: actions/upload-artifact@v7
+      with:
+        name: mindmap-${{ inputs.project }}
+        path: test-results/mindmap/
+        retention-days: 1
+
+    # Each test's receipt evidence and page 1 beside it, for the AI judge (ADR 0020).
+    - name: Upload the evidence
+      if: ${{ !cancelled() }}
+      uses: actions/upload-artifact@v7
+      with:
+        name: evidence-${{ inputs.project }}
+        path: |
+          test-results/**/evidence.json
+          test-results/**/receipt.png
+        retention-days: 14

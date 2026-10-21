@@ -1,0 +1,9 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Map of the journey</title>
+<!-- archify opens Still unless the browser saved Live; this page saves Live on every visit. ADR 0010. -->
+<script>
+  try { localStorage.setItem('archify-motion', 'live'); } catch (_) {}
+  location.replace('map.html' + location.hash);
+</script>
+<p><a href="map.html">Map of the journey</a></p>

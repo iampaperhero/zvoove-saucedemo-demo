@@ -1,0 +1,11 @@
+package-lock.json
+*.md
+.github/
+playwright-report/
+blob-report/
+test-results/
+allure-results/
+allure-report/
+allure-history/
+judge-results/
+docs/run-plan/

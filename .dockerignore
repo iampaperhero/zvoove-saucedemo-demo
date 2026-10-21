@@ -1,0 +1,18 @@
+# Host dependencies are built for the host. Copying them over the ones npm ci
+# installed in the image is how a container ends up with macOS binaries.
+node_modules/
+
+# Local secrets and machine specific settings. .env.example is kept, so the
+# image still documents what can be configured.
+.env
+
+# Run artefacts from local runs.
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+
+.git/
+.gitignore
+.DS_Store
+README.md

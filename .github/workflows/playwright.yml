@@ -1,0 +1,280 @@
+# Runs on demand only, never on a pull request or a schedule (ADR 0009).
+name: Playwright tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: Public URL of the app
+        type: string
+        default: https://www.saucedemo.com
+      browser:
+        description: Browser to run, or all of them as parallel jobs
+        type: choice
+        options: [chromium-desktop-1280x720, firefox-desktop-1920x1080, webkit-iphone12-390x844, all]
+        default: chromium-desktop-1280x720
+      users:
+        description: Users to run as, each browser once per user
+        type: choice
+        options: [both, standard, problem]
+        default: both
+      retries:
+        description: Retries for a failed test
+        type: choice
+        options: ['0', '1', '2']
+        default: '0'
+      # Empty uses the run's id, so a rerun draws the same data.
+      faker_seed:
+        description: Faker seed, to replay the test data of an earlier run
+        type: string
+        default: ''
+      # Jev through OpenRouter reads each test's order receipt (ADR 0020).
+      judge:
+        description: AI judge of the order receipts
+        type: boolean
+        default: true
+      # Deduplicated against the open issues by checklist item.
+      file_issues:
+        description: File an issue for each new anomaly the judge reports
+        type: boolean
+        default: false
+
+run-name: >-
+  ${{ format('Manual execution on {0} | browser: {1} | users: {2} | retries: {3}',
+  github.ref_name, inputs.browser, inputs.users, inputs.retries) }}
+
+# The users and their password (.env.example): repository variables and a secret.
+env:
+  SAUCE_STANDARD_USER: ${{ vars.SAUCE_STANDARD_USER }}
+  SAUCE_PROBLEM_USER: ${{ vars.SAUCE_PROBLEM_USER }}
+  SAUCE_PASSWORD: ${{ secrets.SAUCE_PASSWORD }}
+  BASE_URL: ${{ inputs.base_url || 'https://www.saucedemo.com' }}
+  RETRIES: ${{ inputs.retries }}
+  FAKER_SEED: ${{ inputs.faker_seed || github.run_id }}
+
+jobs:
+
+  lint:
+    name: pre · lint and typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run format:check
+      # The AI judge against a fake OpenRouter: plumbing and exit codes, no key, no network.
+      - run: npm run judge:test
+
+  # Only informs, so the tests do not wait for it (ADR 0010).
+  plan:
+    name: pre · run plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    environment:
+      name: run-plan
+      url: ${{ steps.plan.outputs.url }}
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            docs/run-plan
+            .github/actions
+
+      - uses: ./.github/actions/run-plan
+        id: plan
+        with:
+          browser: ${{ inputs.browser }}
+          users: ${{ inputs.users }}
+          judge: ${{ inputs.judge }}
+          pages-project: ${{ vars.CLOUDFLARE_PAGES_PROJECT }}
+          api-token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          account-id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+  # One job per browser and user; without inputs, Chromium as both users.
+  test:
+    name: test · ${{ matrix.project }} · ${{ matrix.user }}
+    needs: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    # The image of the Playwright package.json pins, as in the Dockerfile (ADR 0004). --user 1001
+    # keeps the checkout writable, --ipc=host keeps Chromium off a small /dev/shm.
+    container:
+      image: mcr.microsoft.com/playwright:v1.64.1-noble
+      options: --user 1001 --ipc=host
+
+    strategy:
+      fail-fast: false
+      matrix:
+        project: ${{ fromJSON(inputs.browser == 'all' && '["chromium-desktop-1280x720","firefox-desktop-1920x1080","webkit-iphone12-390x844"]' || format('["{0}"]', inputs.browser || 'chromium-desktop-1280x720')) }}
+        user: ${{ fromJSON((!inputs.users || inputs.users == 'both') && format('["{0}","{1}"]', vars.SAUCE_STANDARD_USER, vars.SAUCE_PROBLEM_USER) || format('["{0}"]', inputs.users == 'standard' && vars.SAUCE_STANDARD_USER || vars.SAUCE_PROBLEM_USER)) }}
+
+    env:
+      SAUCE_USERS: ${{ matrix.user }}
+      BROWSER: ${{ matrix.project }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - run: npm ci
+
+      # A failed test fails the job: an open bug is a gate (ADR 0018).
+      - name: Run tests
+        run: npx playwright test ${RETRIES:+--retries=$RETRIES}
+
+      - name: Collect the results
+        if: ${{ !cancelled() }}
+        uses: ./.github/actions/collect-results
+        with:
+          project: ${{ matrix.project }}-${{ matrix.user }}
+
+      # Says whether the failures are only known ones; it never turns a red job green.
+      - name: 'Verdict: known or new failures'
+        if: ${{ !cancelled() }}
+        run: |
+          if [ ! -f verdict.json ]; then
+            echo "::error::No verdict.json: the tests ended before the verdict was written, read the Run tests step (ADR 0018)"
+            exit 1
+          fi
+          if ! node -e 'process.exit(require("./verdict.json").ok ? 0 : 1)'; then
+            echo "::error::New failure: not every failure is a known one of ${{ matrix.user }}, see the Verdict section of the summary (ADR 0018)"
+            exit 1
+          fi
+          echo "::notice::No new failure of ${{ matrix.user }}: every failure is a known one (ADR 0018)"
+
+  summary:
+    name: post · test execution overview
+    needs: test
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: .github/actions
+
+      - uses: ./.github/actions/mind-map
+
+  # Jev reads each test's receipt.png and evidence.json; advisory (ADR 0020).
+  judge:
+    name: post · AI judge
+    needs: test
+    # Each user's receipt on its own, so a run of one user is judged too.
+    if: ${{ !cancelled() && inputs.judge }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+    permissions:
+      contents: read
+    outputs:
+      golden: ${{ steps.judge.outputs.golden }}
+      verdict: ${{ steps.judge.outputs.verdict }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      # A folder per job: each test's evidence.json with its receipt.png beside it.
+      - name: Download the evidence
+        uses: actions/download-artifact@v8
+        with:
+          pattern: evidence-*
+          path: evidence
+
+      - uses: ./.github/actions/ai-judge
+        id: judge
+        with:
+          evidence-dir: evidence
+          openrouter-api-key: ${{ secrets.OPENROUTER_API_KEY }}
+
+      - name: Keep the verdict
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: ai-judge-verdict
+          path: judge-results/
+          retention-days: 14
+
+  # The only job that may write issues: on demand, after a passed golden set and a verdict without error (ADR 0020).
+  file-issues:
+    name: post · file the judge's new anomalies
+    needs: judge
+    if: ${{ !cancelled() && inputs.file_issues && needs.judge.outputs.golden == 'passed' && needs.judge.outputs.verdict != 'error' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: judge
+
+      - name: Download the verdict
+        uses: actions/download-artifact@v8
+        with:
+          name: ai-judge-verdict
+          path: judge-results
+
+      - name: File the new anomalies
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node judge/file-issues.mjs judge-results/verdict.json
+
+  # After the run plan, so its map-only deployment never lands over the reports (ADR 0010, 0011).
+  # After the judge, for its page; skipped or failed, the index says so.
+  publish:
+    name: post · publish to Cloudflare
+    needs: [plan, test, judge]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    # Runs on main publish one at a time: each appends to the Allure history the previous one published.
+    concurrency:
+      group: ${{ github.ref == 'refs/heads/main' && 'publish-main' || format('publish-{0}', github.run_id) }}
+      cancel-in-progress: false
+
+    environment:
+      name: reports
+      url: ${{ steps.deploy.outputs.url }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - uses: ./.github/actions/build-reports
+        with:
+          pages-project: ${{ vars.CLOUDFLARE_PAGES_PROJECT }}
+          judge-result: ${{ needs.judge.result }}
+
+      - name: Deploy the reports
+        id: deploy
+        if: ${{ vars.CLOUDFLARE_PAGES_PROJECT != '' }}
+        uses: ./.github/actions/deploy-reports
+        with:
+          pages-project: ${{ vars.CLOUDFLARE_PAGES_PROJECT }}
+          api-token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          account-id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

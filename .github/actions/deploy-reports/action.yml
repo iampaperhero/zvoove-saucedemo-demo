@@ -1,0 +1,43 @@
+name: Deploy the reports to Cloudflare Pages
+description: Publishes site/ at run-<number>.<project>.pages.dev, and at <project>.pages.dev for a run on main.
+
+inputs:
+  pages-project:
+    description: The Cloudflare Pages project.
+    required: true
+  api-token:
+    description: A Cloudflare API token allowed to edit Pages.
+    required: true
+  account-id:
+    description: The Cloudflare account the project belongs to.
+    required: true
+
+outputs:
+  url:
+    description: The address of this run's reports.
+    value: ${{ steps.deploy.outputs.pages-deployment-alias-url || steps.deploy.outputs.deployment-url }}
+
+runs:
+  using: composite
+  steps:
+    # Deployed as branch run-<number>: a stable address per run, the run page's number.
+    - name: Deploy to Cloudflare Pages
+      id: deploy
+      uses: cloudflare/wrangler-action@v4
+      with:
+        apiToken: ${{ inputs.api-token }}
+        accountId: ${{ inputs.account-id }}
+        command: pages deploy site --project-name=${{ inputs.pages-project }} --branch=run-${{ github.run_number }}
+
+    # A run on main also updates <project>.pages.dev, the latest report of main.
+    - name: Update the production address
+      if: ${{ github.ref == 'refs/heads/main' }}
+      uses: cloudflare/wrangler-action@v4
+      with:
+        apiToken: ${{ inputs.api-token }}
+        accountId: ${{ inputs.account-id }}
+        command: pages deploy site --project-name=${{ inputs.pages-project }} --branch=main
+
+    - name: Link the reports from the run summary
+      shell: bash
+      run: echo "### [Reports](${{ steps.deploy.outputs.pages-deployment-alias-url || steps.deploy.outputs.deployment-url }})" >> "$GITHUB_STEP_SUMMARY"

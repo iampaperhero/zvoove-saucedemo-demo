@@ -1,0 +1,37 @@
+{
+  "name": "zvoove-saucedemo-demo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "End-to-end tests for https://www.saucedemo.com with Playwright and TypeScript",
+  "scripts": {
+    "test": "playwright test",
+    "report": "playwright show-report",
+    "judge": "node --env-file-if-exists=.env judge/judge.mjs",
+    "judge:golden": "node --env-file-if-exists=.env judge/judge.mjs --golden",
+    "judge:golden:make": "node judge/make-golden.mjs && prettier --write --log-level warn judge/golden",
+    "judge:test": "node --test judge/judge.test.mjs",
+    "typecheck": "tsc",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test:isolated": "d=$(mktemp -d) && echo \"results in $d\" && PLAYWRIGHT_HTML_OUTPUT_DIR=$d/report PLAYWRIGHT_HTML_OPEN=never playwright test --output=$d/results"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "@faker-js/faker": "^10.5.0",
+    "@napi-rs/canvas": "1.0.12",
+    "@playwright/test": "1.64.1",
+    "@types/node": "^26.2.0",
+    "allure": "^3.21.0",
+    "allure-playwright": "^3.13.0",
+    "dotenv": "^17.4.2",
+    "eslint": "^9.39.5",
+    "eslint-plugin-playwright": "^2.12.1",
+    "prettier": "^3.9.10",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.71.2",
+    "unpdf": "1.9.1"
+  }
+}

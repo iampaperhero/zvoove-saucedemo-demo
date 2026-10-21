@@ -1,0 +1,55 @@
+{
+  "test": "buys Sauce Labs Backpack and Sauce Labs Bike Light",
+  "project": "chromium-desktop-1280x720",
+  "browser": "chromium",
+  "user": "standard_user",
+  "seed": "2229575257",
+  "issues": [13, 15],
+  "order": {
+    "customer": {
+      "firstName": "Paige",
+      "lastName": "Roberts",
+      "postalCode": "16304"
+    },
+    "products": [
+      {
+        "quantity": 1,
+        "name": "Sauce Labs Backpack",
+        "price": 29.99
+      },
+      {
+        "quantity": 1,
+        "name": "Sauce Labs Bike Light",
+        "price": 9.99
+      }
+    ],
+    "totals": {
+      "itemTotal": 39.98,
+      "tax": 3.2,
+      "total": 43.18
+    }
+  },
+  "receipt": {
+    "lines": [
+      "Swag Labs",
+      "Order Receipt",
+      "O R D E R D E TA I L S",
+      "Order Date October 21, 2026 at 1:54 AM",
+      "Confirmation 7F3K-22X9",
+      "S H I P TO",
+      "Paige Roberts",
+      "16304",
+      "I T E M S",
+      "DESCRIPTION PRICE",
+      "Sauce Labs Backpack $29.99",
+      "Sauce Labs Bike Light $9.99",
+      "Item total $39.98",
+      "Tax $3.20",
+      "Total $43.18",
+      "Thank you for your order! It has been dispatched, and will arrive just as fast as the pony can get there.",
+      "Swag Labs, Inc. · 1 Market Street, San Francisco, CA 94105",
+      "support@swaglabs.example · +1 (415) 555-0134"
+    ],
+    "downloadedOn": "2026-10-21"
+  }
+}
